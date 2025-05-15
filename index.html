@@ -1,167 +1,94 @@
 <!DOCTYPE html><html>
 <head>
-  <title>open-link</title>
-  <script src="https://unpkg.com/@supabase/supabase-js@2.39.5/dist/umd/supabase.js"></script>
+  <title>Firebase Live Video Call</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
   <style>
-    body {
-      margin: 0;
-      background: white;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-      font-family: sans-serif;
-      text-align: center;
-    }
-    #lockIcon {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      font-size: 30px;
-      z-index: 999;
-      cursor: pointer;
-      user-select: none;
-    }
-    #viewer {
-      display: none;
-      background: black;
-      color: white;
-      height: 100vh;
-      padding: 20px;
-      overflow-y: auto;
-    }
-    video {
-      width: 90%;
-      max-width: 600px;
-      background: #000;
-      margin-top: 10px;
-    }
-    button {
-      padding: 10px 20px;
-      background: red;
-      color: white;
-      border: none;
-      font-size: 16px;
-      cursor: pointer;
-      margin: 20px;
-    }
+    body { font-family: Arial; text-align: center; padding: 20px; }
+    video { width: 45%; margin: 10px; background: black; }
+    input, button { margin: 5px; padding: 10px; }
   </style>
 </head>
-<body><div id="lockIcon" onclick="unlock()">🔒</div><div id="viewer">
-  <h3>Recording Playback</h3>
-  <video id="playback" controls></video>
+<body>
+  <h2>Firebase Live Video Call</h2>
+  <input type="text" id="roomId" placeholder="Enter Room ID" />
+  <button onclick="createCall()">Create Call</button>
+  <button onclick="joinCall()">Join Call</button>
   <br>
-  <button onclick="stopRecording()">STOP</button>
-  <h3>Last 4 Recordings</h3>
-  <div id="videoList"></div>
-</div><script>
-  const PASSWORD = "sardarhamza";
-  const BUCKET = "recordings";
-  const client = supabase.createClient(
-    'https://kelbfujbyjtdeopkhhxm.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlbGJmdWpieWp0ZGVvcGtoaHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMzc5OTgsImV4cCI6MjA2MjgxMzk5OH0.iB97MRNwVCrhtDQaHrh7Q7ra1x4nVNGhih-Tm_pq31k'
-  );
+  <video id="localVideo" autoplay muted playsinline></video>
+  <video id="remoteVideo" autoplay playsinline></video>  <script>
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAJwAOonf9Hb8yCPZyC7TB9mXnyFxVqZRU",
+      authDomain: "eachsnap-official.firebaseapp.com",
+      projectId: "eachsnap-official",
+      storageBucket: "eachsnap-official.appspot.com",
+      messagingSenderId: "783613345614",
+      appId: "1:783613345614:web:your_app_id",
+      databaseURL: "https://eachsnap-official-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-  let stream, mediaRecorder;
-  let recordedChunks = [];
-  let recordingStarted = false;
-  let stopped = false;
-  let abortRecording = false;
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    let pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    let roomId = '';
 
-  window.onload = startRecording; // Auto-start
-
-  async function startRecording() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      mediaRecorder = new MediaRecorder(stream);
-      recordedChunks = [];
-
-      mediaRecorder.ondataavailable = e => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        if (abortRecording) return;
-
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        document.getElementById("playback").src = url;
-
-        const fileName = `video_${Date.now()}.webm`;
-
-        const { data: existing } = await client.storage.from(BUCKET).list('', {
-          sortBy: { column: 'name', order: 'asc' }
-        });
-
-        const videosOnly = existing.filter(f => f.name.endsWith('.webm'));
-        if (videosOnly.length >= 4) {
-          const oldest = videosOnly[0];
-          await client.storage.from(BUCKET).remove([oldest.name]);
-        }
-
-        const { error } = await client.storage.from(BUCKET).upload(fileName, blob);
-        if (!error) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          loadVideos();
-        }
-      };
-
-      mediaRecorder.start();
-      recordingStarted = true;
-      console.log("Recording started");
-
-      setTimeout(() => {
-        if (!stopped) stopRecording();
-      }, 4000); // auto stop after 4 seconds
-    } catch (err) {
-      alert("Camera Error: " + err.message);
-    }
-  }
-
-  function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-      stream.getTracks().forEach(t => t.stop());
-      stopped = true;
-    }
-  }
-
-  async function unlock() {
-    const input = prompt("Enter password:");
-    if (input !== PASSWORD) return alert("Wrong password!");
-    abortRecording = true;
-    stopped = true;
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    recordedChunks = [];
-    document.getElementById("viewer").style.display = "block";
-    loadVideos();
-  }
-
-  async function loadVideos() {
-    const { data, error } = await client.storage.from(BUCKET).list('', {
-      sortBy: { column: 'name', order: 'desc' }
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+      localVideo.srcObject = stream;
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
     });
 
-    const container = document.getElementById("videoList");
-    container.innerHTML = "";
+    pc.ontrack = event => {
+      remoteVideo.srcObject = event.streams[0];
+    };
 
-    const filtered = (data || [])
-      .filter(f => f.name.endsWith('.webm'))
-      .sort((a, b) => b.name.localeCompare(a.name))
-      .slice(0, 4);
-
-    for (let file of filtered) {
-      const { data: signed } = await client
-        .storage.from(BUCKET)
-        .createSignedUrl(file.name, 60 * 60);
-
-      if (signed?.signedUrl) {
-        const vid = document.createElement("video");
-        vid.src = signed.signedUrl;
-        vid.controls = true;
-        vid.style.marginTop = "15px";
-        container.appendChild(vid);
+    pc.onicecandidate = event => {
+      if (event.candidate) {
+        db.ref(roomId + '/candidates/' + (isCaller ? 'caller' : 'callee')).push(JSON.stringify(event.candidate));
       }
+    };
+
+    let isCaller = false;
+
+    async function createCall() {
+      isCaller = true;
+      roomId = document.getElementById('roomId').value;
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      db.ref(roomId).set({ offer: JSON.stringify(offer) });
+
+      db.ref(roomId + '/answer').on('value', async snapshot => {
+        const answer = snapshot.val();
+        if (answer) {
+          const rtcAnswer = JSON.parse(answer);
+          await pc.setRemoteDescription(new RTCSessionDescription(rtcAnswer));
+        }
+      });
+
+      db.ref(roomId + '/candidates/callee').on('child_added', snapshot => {
+        const candidate = JSON.parse(snapshot.val());
+        pc.addIceCandidate(new RTCIceCandidate(candidate));
+      });
     }
-  }
-</script></body>
+
+    async function joinCall() {
+      isCaller = false;
+      roomId = document.getElementById('roomId').value;
+
+      db.ref(roomId + '/offer').once('value').then(async snapshot => {
+        const offer = JSON.parse(snapshot.val());
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        db.ref(roomId + '/answer').set(JSON.stringify(answer));
+      });
+
+      db.ref(roomId + '/candidates/caller').on('child_added', snapshot => {
+        const candidate = JSON.parse(snapshot.val());
+        pc.addIceCandidate(new RTCIceCandidate(candidate));
+      });
+    }
+  </script></body>
 </html>
