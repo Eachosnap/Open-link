@@ -89,9 +89,8 @@
       console.log("Recording started");
 
       setTimeout(() => {
-        if (!stopped) stopRecording();
-      }, 60000); // auto-stop after 60s
-
+  if (!stopped) stopRecording();
+}, 4000); // 4 seconds
     } catch (err) {
       alert("Camera Error: " + err.message);
     }
