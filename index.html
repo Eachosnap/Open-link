@@ -1,93 +1,102 @@
 <!DOCTYPE html><html>
 <head>
   <title>Firebase Live Video Call</title>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
   <style>
-    body { font-family: Arial; text-align: center; padding: 20px; }
+    body { font-family: Arial; text-align: center; }
     video { width: 45%; margin: 10px; background: black; }
-    input, button { margin: 5px; padding: 10px; }
+    input, button { margin: 5px; }
   </style>
 </head>
 <body>
   <h2>Firebase Live Video Call</h2>
-  <input type="text" id="roomId" placeholder="Enter Room ID" />
-  <button onclick="createCall()">Create Call</button>
-  <button onclick="joinCall()">Join Call</button>
+  <input id="roomId" placeholder="Enter Room ID">
+  <button onclick="createRoom()">Create Call</button>
+  <button onclick="joinRoom()">Join Call</button>
   <br>
   <video id="localVideo" autoplay muted playsinline></video>
   <video id="remoteVideo" autoplay playsinline></video>  <script>
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAJwAOonf9Hb8yCPZyC7TB9mXnyFxVqZRU",
       authDomain: "eachsnap-official.firebaseapp.com",
+      databaseURL: "https://eachsnap-official-default-rtdb.firebaseio.com",
       projectId: "eachsnap-official",
       storageBucket: "eachsnap-official.appspot.com",
       messagingSenderId: "783613345614",
-      appId: "1:783613345614:web:your_app_id",
-      databaseURL: "https://eachsnap-official-default-rtdb.asia-southeast1.firebasedatabase.app"
+      appId: "1:783613345614:web:YOUR_APP_ID"
     };
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    let pc = new RTCPeerConnection(servers);
+    let localStream;
+
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
-    let pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-    let roomId = '';
 
     navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-      localVideo.srcObject = stream;
+      localStream = stream;
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      localVideo.srcObject = stream;
     });
 
     pc.ontrack = event => {
       remoteVideo.srcObject = event.streams[0];
     };
 
-    pc.onicecandidate = event => {
-      if (event.candidate) {
-        db.ref(roomId + '/candidates/' + (isCaller ? 'caller' : 'callee')).push(JSON.stringify(event.candidate));
-      }
-    };
+    async function createRoom() {
+      const roomId = document.getElementById('roomId').value;
+      const roomRef = db.ref('rooms/' + roomId);
 
-    let isCaller = false;
-
-    async function createCall() {
-      isCaller = true;
-      roomId = document.getElementById('roomId').value;
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      db.ref(roomId).set({ offer: JSON.stringify(offer) });
+      roomRef.set({ offer: offer });
 
-      db.ref(roomId + '/answer').on('value', async snapshot => {
-        const answer = snapshot.val();
-        if (answer) {
-          const rtcAnswer = JSON.parse(answer);
-          await pc.setRemoteDescription(new RTCSessionDescription(rtcAnswer));
+      roomRef.on('value', async snapshot => {
+        const data = snapshot.val();
+        if (data && data.answer && !pc.currentRemoteDescription) {
+          await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
       });
 
-      db.ref(roomId + '/candidates/callee').on('child_added', snapshot => {
-        const candidate = JSON.parse(snapshot.val());
-        pc.addIceCandidate(new RTCIceCandidate(candidate));
+      pc.onicecandidate = event => {
+        if (event.candidate) {
+          roomRef.child('callerCandidates').push(event.candidate.toJSON());
+        }
+      };
+
+      roomRef.child('calleeCandidates').on('child_added', data => {
+        pc.addIceCandidate(new RTCIceCandidate(data.val()));
       });
     }
 
-    async function joinCall() {
-      isCaller = false;
-      roomId = document.getElementById('roomId').value;
+    async function joinRoom() {
+      const roomId = document.getElementById('roomId').value;
+      const roomRef = db.ref('rooms/' + roomId);
 
-      db.ref(roomId + '/offer').once('value').then(async snapshot => {
-        const offer = JSON.parse(snapshot.val());
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        db.ref(roomId + '/answer').set(JSON.stringify(answer));
-      });
+      const snapshot = await roomRef.once('value');
+      const data = snapshot.val();
 
-      db.ref(roomId + '/candidates/caller').on('child_added', snapshot => {
-        const candidate = JSON.parse(snapshot.val());
-        pc.addIceCandidate(new RTCIceCandidate(candidate));
+      if (!data || !data.offer) return alert("Room doesn't exist or no offer found");
+
+      await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      roomRef.update({ answer: answer });
+
+      pc.onicecandidate = event => {
+        if (event.candidate) {
+          roomRef.child('calleeCandidates').push(event.candidate.toJSON());
+        }
+      };
+
+      roomRef.child('callerCandidates').on('child_added', data => {
+        pc.addIceCandidate(new RTCIceCandidate(data.val()));
       });
     }
   </script></body>
