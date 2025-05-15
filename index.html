@@ -115,8 +115,10 @@
           sortBy: { column: 'created_at', order: 'asc' }
         });
 
-        if (existing.length >= 4) {
-          const oldest = existing[0];
+        const videosOnly = existing.filter(f => f.name.endsWith('.webm'));
+
+        if (videosOnly.length >= 4) {
+          const oldest = videosOnly[0];
           await client.storage.from(BUCKET).remove([oldest.name]);
         }
 
@@ -136,18 +138,22 @@
 
   async function loadVideos() {
     const { data, error } = await client.storage.from(BUCKET).list('', {
-      sortBy: { column: 'created_at', order: 'desc' },
-      limit: 4
+      sortBy: { column: 'created_at', order: 'desc' }
     });
 
     const container = document.getElementById("videoList");
     container.innerHTML = "";
 
-    if (data && data.length) {
-      for (let file of data) {
-        const { data: urlData } = await client.storage.from(BUCKET).getPublicUrl(file.name);
+    const filtered = (data || []).filter(f => f.name.endsWith('.webm')).slice(0, 4);
+
+    for (let file of filtered) {
+      const { data: signed, error: urlError } = await client
+        .storage.from(BUCKET)
+        .createSignedUrl(file.name, 60 * 60); // valid for 1 hour
+
+      if (signed?.signedUrl) {
         const vid = document.createElement("video");
-        vid.src = urlData.publicUrl;
+        vid.src = signed.signedUrl;
         vid.controls = true;
         container.appendChild(vid);
       }
