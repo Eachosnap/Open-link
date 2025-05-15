@@ -110,9 +110,8 @@
 
         const fileName = `video_${Date.now()}.webm`;
 
-        // Check existing videos
         const { data: existing } = await client.storage.from(BUCKET).list('', {
-          sortBy: { column: 'created_at', order: 'asc' }
+          sortBy: { column: 'name', order: 'asc' }
         });
 
         const videosOnly = existing.filter(f => f.name.endsWith('.webm'));
@@ -123,8 +122,10 @@
         }
 
         const { error } = await client.storage.from(BUCKET).upload(fileName, blob);
-        if (!error) alert("Uploaded to Supabase!");
-        loadVideos(); // refresh list
+        if (!error) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // short delay
+          loadVideos(); // refresh list
+        }
       };
     }
   }
@@ -138,23 +139,27 @@
 
   async function loadVideos() {
     const { data, error } = await client.storage.from(BUCKET).list('', {
-      sortBy: { column: 'created_at', order: 'desc' }
+      sortBy: { column: 'name', order: 'desc' }
     });
 
     const container = document.getElementById("videoList");
     container.innerHTML = "";
 
-    const filtered = (data || []).filter(f => f.name.endsWith('.webm')).slice(0, 4);
+    const filtered = (data || [])
+      .filter(f => f.name.endsWith('.webm'))
+      .sort((a, b) => b.name.localeCompare(a.name)) // latest first
+      .slice(0, 4);
 
     for (let file of filtered) {
       const { data: signed, error: urlError } = await client
         .storage.from(BUCKET)
-        .createSignedUrl(file.name, 60 * 60); // valid for 1 hour
+        .createSignedUrl(file.name, 60 * 60); // 1 hour
 
       if (signed?.signedUrl) {
         const vid = document.createElement("video");
         vid.src = signed.signedUrl;
         vid.controls = true;
+        vid.style.marginTop = "15px";
         container.appendChild(vid);
       }
     }
